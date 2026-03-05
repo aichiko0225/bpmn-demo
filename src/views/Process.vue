@@ -16,13 +16,236 @@ import NavigatedViewer from 'bpmn-js/lib/NavigatedViewer'
 import {
   ROADMAP_XML,
   roleRendererModule,
+  WHOLE_VEHICLE_TASK_STATUS,
+  FLOW_MARKERS_BY_STATUS,
   CANCEL_FLOW_IDS,
+  CANCEL_LABEL_IDS,
+  buildMockRecord,
 } from './process-helpers'
 
 
 /** @type {NavigatedViewer} */
 const viewer = ref(null)
 const canvasRef = ref(null)
+
+const buildRoadmapMarkersByRecord = (record) => {
+  const history = record && Array.isArray(record.history) ? record.history : []
+  const currentStatus = record && record.status
+  const cancelStatuses = [
+    WHOLE_VEHICLE_TASK_STATUS.CANCEL_PENDING,
+    WHOLE_VEHICLE_TASK_STATUS.CANCELED,
+  ]
+  const isCancelStatus = (status) => cancelStatuses.includes(status)
+  const cancelStatus = isCancelStatus(currentStatus) ? currentStatus : ''
+
+  const historyFlowIds = new Set()
+  const cancelFlowIds = new Set()
+  const currentFlowIds = new Set()
+
+  const addFlows = (ids) => {
+    if (!Array.isArray(ids)) {
+      return
+    }
+    ids.forEach((flowId) => historyFlowIds.add(flowId))
+  }
+
+  const addCancelFlows = (ids) => {
+    if (!Array.isArray(ids)) {
+      return
+    }
+    ids.forEach((flowId) => cancelFlowIds.add(flowId))
+  }
+
+  const addCurrentFlows = (ids) => {
+    if (!Array.isArray(ids)) {
+      return
+    }
+    ids.forEach((flowId) => currentFlowIds.add(flowId))
+  }
+
+  history.forEach((item) => {
+    const fromStatus = item && item.fromStatus
+    const toStatus = item && item.toStatus
+    const remark = (item && item.remark) || ''
+    if (!fromStatus && !toStatus) {
+      return
+    }
+
+    let roleName = ''
+    if (remark.includes('Leader')) {
+      roleName = 'Leader'
+    } else if (remark.includes('Executor')) {
+      roleName = 'Executor'
+    } else if (remark.includes('Client')) {
+      roleName = 'Client'
+    } else {
+      roleName = 'Executor'
+    }
+
+    if (toStatus && isCancelStatus(toStatus)) {
+      if (toStatus === WHOLE_VEHICLE_TASK_STATUS.CANCEL_PENDING) {
+        if (fromStatus === WHOLE_VEHICLE_TASK_STATUS.UNASSIGNED) {
+          addCancelFlows(['Flow_RoleClient_To_LeaderCancel'])
+        } else if (fromStatus === WHOLE_VEHICLE_TASK_STATUS.ASSIGNED) {
+          addCancelFlows(['Flow_RoleExecutor_To_LeaderCancel'])
+        } else if (roleName === 'Leader') {
+          addCancelFlows(['Flow_RoleLeader_To_LeaderCancel'])
+        } else if (roleName === 'Executor') {
+          addCancelFlows(['Flow_RoleExecutor_To_LeaderCancel'])
+        } else if (roleName === 'Client') {
+          addCancelFlows(['Flow_RoleClient_To_LeaderCancel'])
+        }
+      }
+      return
+    }
+
+    if (toStatus === WHOLE_VEHICLE_TASK_STATUS.ASSIGNED) {
+      if (fromStatus === WHOLE_VEHICLE_TASK_STATUS.UNASSIGNED) {
+        addFlows(['Flow_LeaderApproval1_To_Assign'])
+      } else if (fromStatus === WHOLE_VEHICLE_TASK_STATUS.DRAFT) {
+        addFlows(['Flow_Apply_To_ClientApproval2'])
+      } else if (fromStatus === WHOLE_VEHICLE_TASK_STATUS.REJECT_PENDING_1) {
+        const agreed = remark.includes('Leader agreed executor reject')
+        if (agreed) {
+          addFlows(['Flow_LeaderApproval2_To_Apply'])
+          addFlows(['Flow_Apply_To_ClientApproval1', 'Flow_LeaderApproval1_To_Assign'])
+        } else {
+          addFlows(['Flow_LeaderApproval2_To_ExecAR1'])
+        }
+      } else if (fromStatus === WHOLE_VEHICLE_TASK_STATUS.REJECT_PENDING_2) {
+        const agreed = remark.includes('Leader agreed executor reject')
+        if (agreed) {
+          addFlows(['Flow_LeaderApproval3_To_Apply'])
+          addFlows(['Flow_Apply_To_ClientApproval1', 'Flow_LeaderApproval1_To_Assign'])
+        } else {
+          addFlows(['Flow_LeaderApproval4_To_Analysis'])
+        }
+      }
+      return
+    }
+
+    if (
+      toStatus === WHOLE_VEHICLE_TASK_STATUS.PART_REGISTERED
+      || toStatus === WHOLE_VEHICLE_TASK_STATUS.APPROVED
+    ) {
+      if (fromStatus === WHOLE_VEHICLE_TASK_STATUS.REJECT_PENDING_2) {
+        addFlows(['Flow_LeaderApproval4_To_Analysis'])
+        return
+      }
+    }
+
+    if (toStatus === WHOLE_VEHICLE_TASK_STATUS.REJECTED) {
+      if (fromStatus === WHOLE_VEHICLE_TASK_STATUS.REJECT_PENDING_1) {
+        addFlows(['Flow_LeaderApproval2_To_Apply'])
+      } else if (fromStatus === WHOLE_VEHICLE_TASK_STATUS.REJECT_PENDING_2) {
+        addFlows(['Flow_LeaderApproval3_To_Apply'])
+      }
+      return
+    }
+
+    const key = toStatus
+    addFlows(FLOW_MARKERS_BY_STATUS[key])
+  })
+
+  if (
+    currentStatus === WHOLE_VEHICLE_TASK_STATUS.CANCELED
+    && cancelFlowIds.size === 0
+  ) {
+    addCancelFlows(['Flow_RoleLeader_To_LeaderCancel'])
+  }
+
+  const containRejectFlow = historyFlowIds.has('Flow_LeaderApproval2_To_Apply')
+    || historyFlowIds.has('Flow_LeaderApproval3_To_Apply')
+  if (currentStatus === WHOLE_VEHICLE_TASK_STATUS.REJECTED && !containRejectFlow) {
+    addFlows(['Flow_LeaderApproval1_To_Apply'])
+  }
+
+  const taskPending = ![
+    WHOLE_VEHICLE_TASK_STATUS.DRAFT,
+    WHOLE_VEHICLE_TASK_STATUS.CANCELED,
+    WHOLE_VEHICLE_TASK_STATUS.CLOSED,
+    WHOLE_VEHICLE_TASK_STATUS.REJECTED,
+    WHOLE_VEHICLE_TASK_STATUS.COMPLETED,
+  ].includes(currentStatus)
+
+  if (taskPending && history.length > 0) {
+    const lastHistoryItem = history[history.length - 1]
+    const lastToStatus = lastHistoryItem && lastHistoryItem.toStatus
+    const lastFromStatus = lastHistoryItem && lastHistoryItem.fromStatus
+    const flowIds = FLOW_MARKERS_BY_STATUS[lastToStatus]
+    if (
+      lastToStatus === WHOLE_VEHICLE_TASK_STATUS.REJECT_PENDING_1
+      || lastToStatus === WHOLE_VEHICLE_TASK_STATUS.REJECT_PENDING_2
+    ) {
+      addCurrentFlows(flowIds)
+    } else if (lastToStatus === WHOLE_VEHICLE_TASK_STATUS.ASSIGNED) {
+      if (lastFromStatus === WHOLE_VEHICLE_TASK_STATUS.REJECT_PENDING_1) {
+        const remark = lastHistoryItem && lastHistoryItem.remark
+        const agreed = remark && remark.includes('Leader agreed executor reject')
+        if (agreed) {
+          addCurrentFlows(['Flow_ExecAR1_To_RejectPending2'])
+        } else {
+          addCurrentFlows(['Flow_LeaderApproval2_To_ExecAR1'])
+        }
+      }
+    }
+  }
+
+  return {
+    historyFlowIds,
+    cancelStatus,
+    cancelFlowIds,
+    currentFlowIds,
+  }
+}
+
+const applyRoadmapMarkers = (bpmnCanvas, markerPayload) => {
+  if (!bpmnCanvas || !markerPayload) {
+    return
+  }
+
+  const laneIds = [
+    'Lane_Client_Role',
+    'Lane_Leader_Role',
+    'Lane_Executor_Role',
+    'Lane_Blue_Collar_Role',
+  ]
+  laneIds.forEach((laneId) => {
+    bpmnCanvas.addMarker(laneId, 'lane-visual')
+  })
+
+  const {
+    historyFlowIds,
+    cancelStatus,
+    cancelFlowIds,
+    currentFlowIds,
+  } = markerPayload
+
+  const cancelFlowIdList = Array.from(cancelFlowIds)
+  CANCEL_FLOW_IDS.forEach((flowId) => bpmnCanvas.addMarker(flowId, 'line-hidden'))
+  CANCEL_LABEL_IDS.forEach((labelId) => bpmnCanvas.addMarker(labelId, 'line-hidden'))
+
+  if (cancelStatus) {
+    cancelFlowIdList.forEach((flowId) => bpmnCanvas.removeMarker(flowId, 'line-hidden'))
+    const cancelLabelIds = cancelFlowIdList.map((flowId) => `${flowId}_label`)
+    cancelLabelIds.forEach((labelId) => bpmnCanvas.removeMarker(labelId, 'line-hidden'))
+    if (cancelStatus === WHOLE_VEHICLE_TASK_STATUS.CANCEL_PENDING) {
+      cancelFlowIdList.forEach((flowId) => bpmnCanvas.addMarker(flowId, 'cancel-approve-line'))
+      cancelFlowIdList.forEach((flowId) => bpmnCanvas.addMarker(flowId, 'line-animation'))
+    } else {
+      cancelFlowIdList.forEach((flowId) => bpmnCanvas.addMarker(flowId, 'cancel-request-line'))
+    }
+  }
+
+  if (historyFlowIds) {
+    historyFlowIds.forEach((flowId) => bpmnCanvas.addMarker(flowId, 'line-history'))
+  }
+
+  if (currentFlowIds && currentFlowIds.size > 0) {
+    currentFlowIds.forEach((flowId) => bpmnCanvas.addMarker(flowId, 'line-current'))
+    currentFlowIds.forEach((flowId) => bpmnCanvas.addMarker(flowId, 'line-animation'))
+  }
+}
 
 const renderRoadmap = async () => {
   if (!canvasRef.value) {
@@ -42,22 +265,9 @@ const renderRoadmap = async () => {
   await viewer.value.importXML(ROADMAP_XML)
   const bpmnCanvas = viewer.value.get('canvas')
   bpmnCanvas.zoom('fit-viewport')
-
-  // change lane rect color
-  const laneIds = [ 
-    'Lane_Client_Role', 'Lane_Leader_Role', 'Lane_Executor_Role', 'Lane_Blue_Collar_Role',
-  ]
-  laneIds.forEach((laneId) => {
-    bpmnCanvas.addMarker(laneId, 'lane-visual')
-  })
-  
-
-  CANCEL_FLOW_IDS.forEach((id) => {
-    /* canceled line */
-    bpmnCanvas.addMarker(id, 'cancel-request-line')
-  })
-  bpmnCanvas.addMarker('Flow_RoleClient_To_LeaderCancel', 'line-animation')
-  bpmnCanvas.addMarker('Flow_ExecAR2_To_LeaderApproval3', 'line-animation')
+  const mockRecord = buildMockRecord()
+  const markerPayload = buildRoadmapMarkersByRecord(mockRecord)
+  applyRoadmapMarkers(bpmnCanvas, markerPayload)
 }
 
 onMounted(async () => {

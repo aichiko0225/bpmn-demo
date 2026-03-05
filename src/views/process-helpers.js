@@ -20,14 +20,16 @@ export const WHOLE_VEHICLE_TASK_STATUS = Object.freeze({
   REJECT_PENDING_2: 'RejectPending2',
   /// Part registered
   PART_REGISTERED: 'PartRegistered',
+  /// Measured 测量完成-执行人完成测量工作（3个测量状态均为Done）
+  MEASURED: 'Measured',
   /// Completed
   COMPLETED: 'Completed',
   /// Rejected
   REJECTED: 'Rejected',
   /// Cancel pending
   CANCEL_PENDING: 'CancelPending',
-  /// Cancelled
-  CANCELLED: 'Cancelled',
+  /// Canceled
+  CANCELED: 'Canceled',
   /// Closed
   CLOSED: 'Closed',
 })
@@ -192,6 +194,30 @@ export const FLOW_MARKERS_BY_STATUS = {
     'Flow_Evaluation_To_End',
   ],
 }
+
+export const buildMockRecord = () => ({
+  status: WHOLE_VEHICLE_TASK_STATUS.ASSIGNED,
+  history: [
+    {
+      id: 'h1',
+      taskId: 't1',
+      fromStatus: WHOLE_VEHICLE_TASK_STATUS.DRAFT,
+      toStatus: WHOLE_VEHICLE_TASK_STATUS.UNASSIGNED,
+      changedBy: 'Client',
+      remark: 'Client created Draft -> UnAssigned',
+      ts: '2025-01-01T10:00:00Z',
+    },
+    {
+      id: 'h2',
+      taskId: 't1',
+      fromStatus: WHOLE_VEHICLE_TASK_STATUS.UNASSIGNED,
+      toStatus: WHOLE_VEHICLE_TASK_STATUS.ASSIGNED,
+      changedBy: 'Leader',
+      remark: 'Leader assigned executor',
+      ts: '2025-01-01T12:00:00Z',
+    },
+  ],
+})
 
 export const ROADMAP_XML = `
 <?xml version="1.0" encoding="UTF-8"?>

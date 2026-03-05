@@ -153,6 +153,7 @@ export const FLOW_MARKERS_BY_STATUS = {
   ],
   [WHOLE_VEHICLE_TASK_STATUS.APPROVED]: [
     'Flow_ExecAR1_To_Register',
+    'Flow_ExecAR1_To_ExecAR2'
   ],
   [WHOLE_VEHICLE_TASK_STATUS.CONFIRMED]: [
     'Flow_ExecAR2_To_Analysis',
@@ -196,25 +197,70 @@ export const FLOW_MARKERS_BY_STATUS = {
 }
 
 export const buildMockRecord = () => ({
-  status: WHOLE_VEHICLE_TASK_STATUS.ASSIGNED,
+  status: WHOLE_VEHICLE_TASK_STATUS.REJECT_PENDING_2,
   history: [
     {
-      id: 'h1',
-      taskId: 't1',
-      fromStatus: WHOLE_VEHICLE_TASK_STATUS.DRAFT,
-      toStatus: WHOLE_VEHICLE_TASK_STATUS.UNASSIGNED,
-      changedBy: 'Client',
-      remark: 'Client created Draft -> UnAssigned',
-      ts: '2025-01-01T10:00:00Z',
+      id: '2029472757888249857',
+      taskId: '2029472757292658690',
+      fromStatus: '',
+      toStatus: WHOLE_VEHICLE_TASK_STATUS.DRAFT,
+      changedBy: 'S9CEONO',
+      remark: 'Created draft',
+      ts: '2026-03-05 16:23:06',
     },
     {
-      id: 'h2',
-      taskId: 't1',
+      id: '2029472764381032449',
+      taskId: '2029472757292658690',
+      fromStatus: WHOLE_VEHICLE_TASK_STATUS.DRAFT,
+      toStatus: WHOLE_VEHICLE_TASK_STATUS.UNASSIGNED,
+      changedBy: 'S9CEONO',
+      remark: 'Client submitted draft for approval',
+      ts: '2026-03-05 16:23:07',
+    },
+    {
+      id: '2029473096381165570',
+      taskId: '2029472757292658690',
       fromStatus: WHOLE_VEHICLE_TASK_STATUS.UNASSIGNED,
       toStatus: WHOLE_VEHICLE_TASK_STATUS.ASSIGNED,
-      changedBy: 'Leader',
-      remark: 'Leader assigned executor',
-      ts: '2025-01-01T12:00:00Z',
+      changedBy: 'FPXNUH1',
+      remark: 'Leader assigned executor: FPXNUH1',
+      ts: '2026-03-05 16:24:27',
+    },
+    {
+      id: '2029473173535387650',
+      taskId: '2029472757292658690',
+      fromStatus: WHOLE_VEHICLE_TASK_STATUS.ASSIGNED,
+      toStatus: WHOLE_VEHICLE_TASK_STATUS.REJECTED,
+      changedBy: 'DMGN521',
+      remark: 'Leader rejected task: 重新选择组',
+      ts: '2026-03-05 16:24:45',
+    },
+    {
+      id: '2029473400686309377',
+      taskId: '2029472757292658690',
+      fromStatus: WHOLE_VEHICLE_TASK_STATUS.ASSIGNED,
+      toStatus: WHOLE_VEHICLE_TASK_STATUS.APPROVED,
+      changedBy: 'FPXNUH1',
+      remark: 'Executor first confirm (accepted)',
+      ts: '2026-03-05 16:25:39',
+    },
+    {
+      id: '2029473400686309377',
+      taskId: '2029472757292658690',
+      fromStatus: WHOLE_VEHICLE_TASK_STATUS.PART_REGISTERED,
+      toStatus: WHOLE_VEHICLE_TASK_STATUS.PART_REGISTERED,
+      changedBy: 'FPXNUH1',
+      remark: 'Executor first confirm (accepted)',
+      ts: '2026-03-05 16:25:39',
+    },
+    {
+      id: '2029473455820435457',
+      taskId: '2029472757292658690',
+      fromStatus: WHOLE_VEHICLE_TASK_STATUS.APPROVED,
+      toStatus: WHOLE_VEHICLE_TASK_STATUS.REJECT_PENDING_2,
+      changedBy: 'FPXNUH1',
+      remark: 'Executor rejected: Can not / 6666',
+      ts: '2026-03-05 16:25:52',
     },
   ],
 })
@@ -340,6 +386,10 @@ export const ROADMAP_XML = `
     <bpmn:sequenceFlow id="Flow_ExecAR1_To_Register" name="accept" 
     sourceRef="Gateway_Executor_Accept_Reject_1" 
     targetRef="Activity_Register_Blue_Collar" />
+
+    <bpmn:sequenceFlow id="Flow_ExecAR1_To_ExecAR2" name="accept" 
+    sourceRef="Gateway_Executor_Accept_Reject_1" 
+    targetRef="Gateway_Executor_Accept_Reject_2" />
 
     <bpmn:sequenceFlow id="Flow_ExecAR1_To_LeaderApproval2" name="reject" 
     sourceRef="Gateway_Executor_Accept_Reject_1" 
@@ -512,7 +562,9 @@ export const ROADMAP_XML = `
 
       <bpmndi:BPMNEdge id="Flow_LeaderApproval2_To_ExecAR1_Diagram" bpmnElement="Flow_LeaderApproval2_To_ExecAR1">
         <di:waypoint x="925" y="448" />
-        <di:waypoint x="925" y="720" />
+        <di:waypoint x="925" y="480" />
+        <di:waypoint x="825" y="480" />
+        <di:waypoint x="825" y="720" />
         <di:waypoint x="485" y="720" />
         <di:waypoint x="485" y="700" />
       </bpmndi:BPMNEdge>
@@ -529,6 +581,15 @@ export const ROADMAP_XML = `
         <di:waypoint x="400" y="960" />
         <di:waypoint x="440" y="960" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ExecAR1_To_ExecAR2_Diagram" bpmnElement="Flow_ExecAR1_To_ExecAR2">
+        <di:waypoint x="460" y="675" />
+        <di:waypoint x="400" y="675" />
+        <di:waypoint x="400" y="780" />
+        <di:waypoint x="800" y="780" />
+        <di:waypoint x="1000" y="780" />
+        <di:waypoint x="1000" y="720" />
+        <di:waypoint x="1060" y="720" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ExecAR1_To_LeaderApproval2_Diagram" bpmnElement="Flow_ExecAR1_To_LeaderApproval2">
         <di:waypoint x="510" y="675" />
         <di:waypoint x="710" y="675" />
@@ -537,8 +598,8 @@ export const ROADMAP_XML = `
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Register_To_ExecAR2_Diagram" bpmnElement="Flow_Register_To_ExecAR2">
         <di:waypoint x="560" y="960" />
-        <di:waypoint x="800" y="960" />
-        <di:waypoint x="800" y="720" />
+        <di:waypoint x="850" y="960" />
+        <di:waypoint x="850" y="720" />
         <di:waypoint x="1060" y="720" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ExecAR2_To_LeaderApproval3_Diagram" bpmnElement="Flow_ExecAR2_To_LeaderApproval3">

@@ -41,12 +41,19 @@ const buildRoadmapMarkersByRecord = (record) => {
   const historyFlowIds = new Set()
   const cancelFlowIds = new Set()
   const currentFlowIds = new Set()
+  const hiddenFlowIds = new Set()
 
   const addFlows = (ids) => {
     if (!Array.isArray(ids)) {
       return
     }
     ids.forEach((flowId) => historyFlowIds.add(flowId))
+  }
+  const addHiddenFlows = (ids) => {
+    if (!Array.isArray(ids)) {
+      return
+    }
+    ids.forEach((flowId) => hiddenFlowIds.add(flowId))
   }
 
   const addCancelFlows = (ids) => {
@@ -124,10 +131,7 @@ const buildRoadmapMarkersByRecord = (record) => {
       return
     }
 
-    if (
-      toStatus === WHOLE_VEHICLE_TASK_STATUS.PART_REGISTERED
-      || toStatus === WHOLE_VEHICLE_TASK_STATUS.APPROVED
-    ) {
+    if (toStatus === WHOLE_VEHICLE_TASK_STATUS.PART_REGISTERED || toStatus === WHOLE_VEHICLE_TASK_STATUS.APPROVED) {
       if (fromStatus === WHOLE_VEHICLE_TASK_STATUS.REJECT_PENDING_2) {
         addFlows(['Flow_LeaderApproval4_To_Analysis'])
         return
@@ -191,11 +195,29 @@ const buildRoadmapMarkersByRecord = (record) => {
     }
   }
 
+  if (history.length > 0) {
+    const haveApproved = history.slice(0, -1).some(
+      (item) => item.toStatus === WHOLE_VEHICLE_TASK_STATUS.APPROVED,
+    )
+    if (history.length > 0 && haveApproved) {
+      const havePartRegistered = history.some(
+        (item) => item.toStatus === WHOLE_VEHICLE_TASK_STATUS.PART_REGISTERED,
+      )
+      if (!havePartRegistered) {
+        addHiddenFlows(['Flow_ExecAR1_To_Register', 'Flow_Register_To_ExecAR2'])
+        addFlows(['Flow_ExecAR1_To_ExecAR2'])
+      } else {
+        addHiddenFlows(['Flow_ExecAR1_To_ExecAR2'])
+      }
+    }
+  }
+
   return {
     historyFlowIds,
     cancelStatus,
     cancelFlowIds,
     currentFlowIds,
+    hiddenFlowIds,
   }
 }
 
@@ -219,7 +241,13 @@ const applyRoadmapMarkers = (bpmnCanvas, markerPayload) => {
     cancelStatus,
     cancelFlowIds,
     currentFlowIds,
+    hiddenFlowIds,
   } = markerPayload
+  console.log('historyFlowIds', historyFlowIds)
+  console.log('cancelStatus', cancelStatus)
+  console.log('cancelFlowIds', cancelFlowIds)
+  console.log('currentFlowIds', currentFlowIds)
+  console.log('hiddenFlowIds', hiddenFlowIds)
 
   const cancelFlowIdList = Array.from(cancelFlowIds)
   CANCEL_FLOW_IDS.forEach((flowId) => bpmnCanvas.addMarker(flowId, 'line-hidden'))
@@ -244,6 +272,13 @@ const applyRoadmapMarkers = (bpmnCanvas, markerPayload) => {
   if (currentFlowIds && currentFlowIds.size > 0) {
     currentFlowIds.forEach((flowId) => bpmnCanvas.addMarker(flowId, 'line-current'))
     currentFlowIds.forEach((flowId) => bpmnCanvas.addMarker(flowId, 'line-animation'))
+  }
+
+  if (hiddenFlowIds && hiddenFlowIds.size > 0) {
+    hiddenFlowIds.forEach((flowId) => bpmnCanvas.addMarker(flowId, 'line-hidden'))
+    const hiddenFlowIdList = Array.from(hiddenFlowIds)
+    const hiddenLabelIds = hiddenFlowIdList.map((flowId) => `${flowId}_label`)
+    hiddenLabelIds.forEach((labelId) => bpmnCanvas.addMarker(labelId, 'line-hidden'))
   }
 }
 
@@ -374,6 +409,17 @@ onBeforeUnmount(() => {
 
 ::v-deep .line-history .djs-visual polyline {
   stroke: #2ecc71 !important;
+  stroke-width: 3px !important;
+}
+
+/* current line */
+::v-deep .line-current .djs-visual path {
+  stroke: #3b82f6 !important;
+  stroke-width: 3px !important;
+}
+
+::v-deep .line-current .djs-visual polyline {
+  stroke: #3b82f6 !important;
   stroke-width: 3px !important;
 }
 
